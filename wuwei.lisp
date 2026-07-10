@@ -183,5 +183,5 @@
                             (else
                              (step (+ n 1)
                                    (format "~a\nThought: ~a" history (str-trim resp))
-                                   audit))))))))
+                                   audit)))))))))
             (step 0 "" '()))))))

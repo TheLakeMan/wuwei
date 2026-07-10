@@ -19,4 +19,7 @@ ship v2
       (refused effect-budget-exceeded ((write-file (file-write))))
 11 safe-agent on over-budget registry     => (refused (refused effect-budget-exceeded ((write-file (file-write)))))
 
+── certified loop entry (regression: exercises the LLM path) ─
+12 certified agent, max-steps 0 (no LLM)   => (halted max-steps ())
+
 gate-test: done

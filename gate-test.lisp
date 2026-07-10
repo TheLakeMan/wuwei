@@ -57,4 +57,11 @@
 (row "11 safe-agent on over-budget registry    " (safe-agent "anything" WRITE-REG READ-ONLY 3))
 
 (println "")
+(println "── certified loop entry (regression: exercises the LLM path) ─")
+;; A certified registry with max-steps 0 returns before any llm call but still
+;; builds the system prompt + letrec loop — the exact code path a boot refusal
+;; skips. Guards the loop-entry structure without needing a live model.
+(row "12 certified agent, max-steps 0 (no LLM)  " (safe-agent "noop" READ-REG READ-ONLY 0))
+
+(println "")
 (println "gate-test: done")
