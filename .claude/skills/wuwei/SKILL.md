@@ -113,14 +113,5 @@ Never hand-edit `expected_gate.txt`; always regenerate from a verified run.
   (`certify-tool-chain`, `safe-call`, `check-effects`, `try-catch`, `llm`,
   `deftool-spec`) already does it. New language features belong in the Rusty
   repo, not here.
-- **Never reference Taoscii** (owner's separate play-toy) anywhere.
 - This is an *app* repo, so demos (`demo-*.lisp`) are fine here — unlike the
   Rusty repo, which is libraries + golden tests only.
-
-## Positioning (for docs/announcements, not code)
-
-The one defensible novelty: **statically proving an agent's tool registry is
-effect-honest as a boot precondition** — "the allowlist can't lie." Claim that
-narrowly, not "unjailbroken." Launch materials (threads, the terminal-card
-images in `~/Pictures/wuwei-shot.png`) already exist; ask the owner before
-publishing anything new.
