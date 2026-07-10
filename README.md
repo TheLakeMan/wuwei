@@ -111,7 +111,13 @@ hoping the model behaves.
 | `demo-tools.lisp` | filesystem tools (`deftool` wrappers over core builtins) |
 | `gate-test.lisp` / `expected_gate.txt` | the deterministic golden test |
 | `demo-live.lisp` | a live-LLM episode (benign + hostile goals) |
+| `demo-shot.lisp` | the one-frame "watch it get rejected" demo |
 | `run_tests.sh` | golden-file runner |
+
+## Where wuwei fits
+
+Robotics, untrusted-input agents, anything that touches real systems — see
+**[USE_CASES.md](./USE_CASES.md)** for what it's perfect for (and what it isn't).
 
 ## License
 
