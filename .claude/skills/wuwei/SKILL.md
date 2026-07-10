@@ -1,0 +1,126 @@
+---
+name: wuwei
+description: Use when developing, extending, testing, or debugging wuwei — the provably-gated agent runner (this repo). Covers the design thesis, file map, test discipline, the hard-won gotchas, and step-by-step recipes for adding gated tools or extending the runner. Read this before touching wuwei.lisp or gate-test.lisp.
+---
+
+# Working on wuwei
+
+wuwei (無為, "action without forcing") is a **provably-gated agent runner** for
+the [Rusty](https://github.com/TheLakeMan/rusty) Lisp: a ReAct loop where an LLM
+can propose anything but **nothing executes until it is proven permitted**. It
+is ~160 lines of pure Lisp with **zero new Rust** — it sits entirely on Rusty's
+existing checkers. Flagship app #2 for Rusty; public at
+`github.com/TheLakeMan/wuwei`, local at `~/projects/artifacts/wuwei`.
+
+## The design — two proof layers (never weaken these)
+
+1. **Static, at boot — `certify-registry`.** Every callable tool must (a) have a
+   `deftool-spec`, (b) be *effect-honest* — `check-effects` finds nothing in its
+   body beyond what it declares, and (c) have its declared effects ⊆ the agent's
+   **effect budget**. Any failure → the agent **REFUSES TO START** (no LLM call,
+   no side effect).
+2. **Dynamic, per call — `gated-dispatch` → `safe-call`.** Every action the model
+   picks is routed through `safe-call`, which enforces arity + arg types +
+   precondition **before the tool body runs**. A violation is caught
+   (`try-catch`) and returned as feedback; the tool never fires on bad input.
+
+**Invariants that must survive any change:** refuse-by-default; static gates run
+*before* any execution; the gate sits in front of *every* side effect; results
+are data (`(done answer audit)` / `(halted why … audit)` / `(refused …)`), where
+`audit` is a list of `(step tool input verdict)` rows.
+
+## File map
+
+| file | what |
+|------|------|
+| `wuwei.lisp` | the runner — string helpers, `certify-registry`, `gated-dispatch`, `safe-agent` loop |
+| `demo-tools.lisp` | `deftool` fs wrappers over Rusty core builtins (so wuwei needs only core + std.lisp, NOT agent-tools.lisp) |
+| `gate-test.lisp` / `expected_gate.txt` | the deterministic golden test (12 checks, NO LLM) — the proof |
+| `demo-live.lisp` | live-LLM episode (benign + hostile) |
+| `demo-shot.lisp` | one-frame "watch it get rejected" demo (capped at 1 step) |
+| `run_tests.sh` | golden-file runner; needs `rusty` on PATH |
+| `USE_CASES.md` | what wuwei is perfect for (robotics, untrusted input, real-system agents) |
+
+## Running & testing
+
+wuwei requires the **`rusty` interpreter on PATH**. If missing:
+```bash
+cd ~/projects/artifacts/rusty && cargo install --path . --bin rusty --root ~/.local
+```
+Then, from the wuwei repo:
+```bash
+./run_tests.sh                 # the deterministic gate suite — must stay green
+rusty demo-shot.lisp           # live hostile-rejection demo (needs llama-server :8080)
+```
+
+**Golden-test discipline (critical):** `gate-test.lisp` is deterministic (no
+LLM). After ANY change to `wuwei.lisp` or `gate-test.lisp`, regenerate and
+eyeball the expected file, then confirm determinism:
+```bash
+rusty gate-test.lisp > expected_gate.txt      # regenerate
+rusty gate-test.lisp | diff - expected_gate.txt && echo OK   # must be clean
+./run_tests.sh
+```
+Never hand-edit `expected_gate.txt`; always regenerate from a verified run.
+
+## Gotchas (each of these cost real debugging time)
+
+- **`deftool` needs a docstring** as the element after the params:
+  `(deftool name (args) "doc" body...)`. Omit it and the body is parsed as the
+  description → `Undefined: <param>` at load.
+- **std.lisp's `string-first-index` matches a single CHAR only.** For multi-char
+  markers (`"ACTION:"`, `"FINAL:"`) use `wuwei.lisp`'s own `substr-index`
+  (returns -1 if absent). Don't reintroduce `string-first-index` for substrings.
+- **Test the LLM-loop path, not just the refusal path.** A missing paren once
+  left the `letrec` bindings malformed, so *every* non-refusal `safe-agent` call
+  raised `let: …` — and the golden test missed it because it only hit refusals.
+  **Check 12** (`certified agent, max-steps 0`) now exercises the loop entry
+  with no LLM. Keep a no-LLM check that reaches the certified loop.
+- **`safe-call` applies the precondition to ALL of a tool's args.** A 2-arg tool
+  needs a 2-arity precondition, e.g. `(define (wpre p c) (in-box? p))`, not the
+  1-arg `in-box?` — otherwise you get an arity error, not a clean reject.
+- **Don't truncate args in dispatch.** `coerce-args` keeps extra args (typed as
+  strings) so `safe-call`'s arity check can *reject* a wrong-arity call. Using
+  `zip` there silently drops extras and hides the violation.
+- **Reasoning-model behavior (Qwythos-9B).** It fills `reasoning_content` and
+  leaves `content` empty under low `max_tokens`; the loop calls `llm` with ~512
+  tokens so real content appears. The local server also drops the connection on
+  the 2nd+ call in a session — `llm-ask` retries and, on final failure, halts
+  gracefully with the audit intact. Don't remove that guard.
+- **Effect-op names** `check-effects` reports for the fs tools: `file-read`,
+  `dir-list`, `file-exists?`, `file-write`, `shell`. Specs must declare exactly
+  these.
+
+## Recipe — add a new gated tool
+
+1. Define the tool in `demo-tools.lisp` (or the caller): `(deftool NAME (args)
+   "doc" BODY)` — BODY may only use effects you'll declare.
+2. Register a spec: `(deftool-spec NAME '((a type)…) '(effect-ops…) PRECOND
+   '(deps…))`. PRECOND arity must match the tool's arg count.
+3. Add it to the registry list passed to `safe-agent`.
+4. Make sure the agent's **effect budget** includes the tool's effects, or it
+   refuses to start (that's correct behavior).
+5. Add a deterministic check to `gate-test.lisp` (an in-bounds `ok` and an
+   out-of-bounds `rejected`), regenerate `expected_gate.txt`, run the suite.
+
+## Conventions
+
+- **Every new source file** gets the header: `;;; Copyright (c) 2026 Nicholas
+  Vermeulen` + `;;; SPDX-License-Identifier: AGPL-3.0-or-later` (Rust/`//`,
+  Lisp/`;;;`, Python/`#`). wuwei is AGPL-3.0-or-later, commercial on inquiry.
+- **Zero new Rust.** wuwei is a *library on top of Rusty*. If you think you need
+  a new builtin/special form, first check whether an existing Rusty primitive
+  (`certify-tool-chain`, `safe-call`, `check-effects`, `try-catch`, `llm`,
+  `deftool-spec`) already does it. New language features belong in the Rusty
+  repo, not here.
+- **Never reference Taoscii** (owner's separate play-toy) anywhere.
+- This is an *app* repo, so demos (`demo-*.lisp`) are fine here — unlike the
+  Rusty repo, which is libraries + golden tests only.
+
+## Positioning (for docs/announcements, not code)
+
+The one defensible novelty: **statically proving an agent's tool registry is
+effect-honest as a boot precondition** — "the allowlist can't lie." Claim that
+narrowly, not "unjailbroken." Launch materials (threads, the terminal-card
+images in `~/Pictures/wuwei-shot.png`) already exist; ask the owner before
+publishing anything new.
