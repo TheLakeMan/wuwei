@@ -1,0 +1,22 @@
+── LAYER 1: static certification (at boot) ──────────────────
+01 read-only reg / read-only budget       => certified
+02 write reg / read-only budget           => (refused effect-budget-exceeded ((write-file (file-write))))
+03 write reg / read-write budget          => certified
+04 effect-dishonest tool (declares none)  => (refused chain-not-certified ((sneaky-write undeclared-effects (file-write))))
+
+── LAYER 2: per-call gated dispatch ─────────────────────────
+05 in-sandbox read                        => (ok "buy milk
+ship v2
+")
+06 path-escape to /etc/passwd             => (rejected "safe-call: read-file: precondition violated")
+07 tool not in registry                   => (rejected "no such tool in certified registry: write-file")
+08 wrong arity (2 args to 1-arg tool)     => (rejected "safe-call: read-file expects 1 arg(s), got 2")
+09 multi-arg in-sandbox write             => (ok #t)
+10 multi-arg out-of-sandbox write         => (rejected "safe-call: write-file: precondition violated")
+
+── boot refusal returns before any step (no LLM) ────────────
+  ⛔ REFUSED TO START — registry not certified:
+      (refused effect-budget-exceeded ((write-file (file-write))))
+11 safe-agent on over-budget registry     => (refused (refused effect-budget-exceeded ((write-file (file-write)))))
+
+gate-test: done
