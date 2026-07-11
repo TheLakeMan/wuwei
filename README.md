@@ -103,6 +103,17 @@ The sandbox agent is *structurally incapable* of reading outside its sandbox,
 and that's checked at the gate before any filesystem access — not enforced by
 hoping the model behaves.
 
+## Audit export — prove what the agent tried
+
+Every run returns its audit as data: `(step tool input verdict)` rows.
+`audit-of` extracts them from any result (a boot refusal's audit is honestly
+empty — nothing ran), and `audit-save` persists them as a versioned-JSON
+model file. That file is exactly what
+**[mingjian](https://github.com/TheLakeMan/mingjian)** consumes: `mj-load`
+it, run `mj-breaches` (a claimed jailbreak must show an `ok` verdict the
+policy forbids — the smoking gun, as data), or `mj-audit->kg!` it for
+knowledge-graph queries across runs.
+
 ## Files
 
 | file | what |
