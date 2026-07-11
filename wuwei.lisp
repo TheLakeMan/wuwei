@@ -185,3 +185,28 @@
                                    (format "~a\nThought: ~a" history (str-trim resp))
                                    audit)))))))))
             (step 0 "" '()))))))
+
+;; ── audit export (pairs with mingjian) ──────────────────────────────────────
+;; Pull the (step tool input verdict) rows out of any safe-agent result:
+;;   (done <answer> <audit>)                → the audit
+;;   (halted max-steps <audit>)             → the audit
+;;   (halted llm-error <msg> <audit>)       → the audit
+;;   (refused ...)                          → () — nothing ran, and that IS
+;;                                            the honest audit of a refusal
+(define (audit-of result)
+  (cond ((not (list? result)) '())
+        ((null? result) '())
+        ((equal? (car result) 'done) (nth result 2))
+        ((and (equal? (car result) 'halted) (equal? (cadr result) 'llm-error))
+         (nth result 3))
+        ((equal? (car result) 'halted) (nth result 2))
+        (else '())))
+
+;; Persist a run's audit as a versioned-JSON model file — the exact shape
+;; mingjian (github.com/TheLakeMan/mingjian) consumes: mj-load it, feed it
+;; to mj-breaches (the battle-test rule) or mj-audit->kg! (queries).
+;; Returns the rows written.
+(define (audit-save result file)
+  (let ((rows (audit-of result)))
+    (save-model file rows)
+    rows))

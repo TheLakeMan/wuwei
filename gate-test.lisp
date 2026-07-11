@@ -64,4 +64,16 @@
 (row "12 certified agent, max-steps 0 (no LLM)  " (safe-agent "noop" READ-REG READ-ONLY 0))
 
 (println "")
+(println "── audit export: rows out of any result, mingjian-ready ─────")
+(row "13 audit of a done result                "
+     (audit-of '(done "answer" ((1 read-file "/tmp/wuwei-gatebox/notes.txt" ok)
+                                (2 write-file "/etc/passwd" rejected)))))
+(row "14 audit of a boot refusal (nothing ran) " (audit-of (safe-agent "anything" WRITE-REG READ-ONLY 3)))
+(define AF (string-append BOX "audit.json"))
+(row "15 saved rows reload identically         "
+     (let ((rows (audit-save '(halted max-steps ((1 list-dir "/tmp/wuwei-gatebox/" ok))) AF)))
+       (equal? rows (load-model AF))))
+(file-delete AF)
+
+(println "")
 (println "gate-test: done")

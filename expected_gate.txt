@@ -22,4 +22,11 @@ ship v2
 ── certified loop entry (regression: exercises the LLM path) ─
 12 certified agent, max-steps 0 (no LLM)   => (halted max-steps ())
 
+── audit export: rows out of any result, mingjian-ready ─────
+13 audit of a done result                 => ((1 read-file "/tmp/wuwei-gatebox/notes.txt" ok) (2 write-file "/etc/passwd" rejected))
+  ⛔ REFUSED TO START — registry not certified:
+      (refused effect-budget-exceeded ((write-file (file-write))))
+14 audit of a boot refusal (nothing ran)  => ()
+15 saved rows reload identically          => #t
+
 gate-test: done
