@@ -1,0 +1,41 @@
+{
+  "rusty-model": 1,
+  "value": [
+    [
+      1.0,
+      {
+        "t": "sym",
+        "v": "read-file"
+      },
+      "/tmp/wuwei-sandbox-demo/notes.txt",
+      {
+        "t": "sym",
+        "v": "ok"
+      }
+    ],
+    [
+      2.0,
+      {
+        "t": "sym",
+        "v": "read-file"
+      },
+      "/etc/passwd",
+      {
+        "t": "sym",
+        "v": "rejected"
+      }
+    ],
+    [
+      3.0,
+      {
+        "t": "sym",
+        "v": "write-file"
+      },
+      "/etc/evil",
+      {
+        "t": "sym",
+        "v": "rejected"
+      }
+    ]
+  ]
+}

@@ -1,15 +1,76 @@
 # 無為 wuwei — agents that don't act until the act is proven safe
 
 **wuwei** is a provably-gated agent runner for the [Rusty](https://github.com/TheLakeMan/rusty)
-Lisp. It is a ReAct loop (LLM reasons → picks a tool → observes result) with a
-hard **proof gate** in front of every side effect. An LLM can propose anything;
-nothing runs until it has been *proven permitted*.
+Lisp. An LLM (or any planner) can propose anything; **nothing with a side effect
+runs until it is proven permitted** — effect-honest tools at boot, contracts on
+every call.
 
 > 無為 — *action without forcing*. The agent that will not act until the act is allowed.
 
-The whole thing is ~160 lines of pure Lisp with **zero new interpreter code** —
-it sits entirely on checkers Rusty already ships (`certify-tool-chain`,
-`safe-call`, `check-effects`).
+~160 lines of pure Lisp, **zero new interpreter code**. Built on Rusty's
+`certify-tool-chain`, `safe-call`, and `check-effects`.
+
+## Try it in 60 seconds (offline — no LLM)
+
+```bash
+# 1. Install the Rusty interpreter once
+git clone https://github.com/TheLakeMan/rusty && cd rusty
+cargo install --path . --bin rusty --root ~/.local   # needs rustc; puts rusty on PATH
+# ensure ~/.local/bin is on PATH
+
+# 2. Clone wuwei and run the sandbox story
+git clone https://github.com/TheLakeMan/wuwei && cd wuwei
+rusty demo-sandbox.lisp
+```
+
+You should see, without any model:
+
+| Moment | Result |
+|--------|--------|
+| Read-only registry + read-only budget | `certified` |
+| Write tool under read-only budget | **refused** at boot |
+| Effect-dishonest tool (writes, declares nothing) | **refused** |
+| Read a file *inside* the sandbox | `ok` |
+| Read `/etc/passwd` | **rejected** before the filesystem is touched |
+| Write outside the sandbox | **rejected** |
+| Audit of a boot refusal | empty — nothing ran |
+
+That is the **agent sandbox** story: the model is not the authorization.
+
+### Receipt — prove there is no breach (still offline)
+
+```bash
+rusty demo-receipt.lisp
+```
+
+Writes `fixtures/sandbox-audit.json` (the exact shape `audit-save` / mingjian
+`mj-load` use). If a sibling [mingjian](https://github.com/TheLakeMan/mingjian)
+checkout exists (`../mingjian`), it scores the audit in-process:
+
+| Check | Result |
+|-------|--------|
+| `mj-verdict-counts` | 1 ok, 2 rejected |
+| `mj-breaches` vs sandbox policy | **empty** — no jailbreak shown |
+| Same audit + forged out-of-box `ok` | **smoking gun row** |
+
+Standalone (only mingjian cloned): `cd mingjian && rusty demo-receipt.lisp`
+(uses the same rows embedded, or the sibling fixture if present).
+
+Proof suite (same guarantees, bit-identical golden file):
+
+```bash
+./run_tests.sh
+```
+
+### Optional: live model
+
+Needs an OpenAI-compatible endpoint (default `http://localhost:8080/v1/chat/completions`).
+Override with `RUSTY_LLM_URL` / `RUSTY_MODEL` / `RUSTY_LLM_TIMEOUT_SECS`.
+
+```bash
+rusty demo-shot.lisp    # one hostile step: watch the gate reject
+rusty demo-live.lisp    # longer episode
+```
 
 ## The problem
 
@@ -61,48 +122,6 @@ tool never fires on bad input, and the loop keeps going with that feedback.
 The result of a run is **data**: `(done <answer> <audit>)` where `<audit>` is a
 list of `(step tool input verdict)` rows you can inspect, log, or checkpoint.
 
-## Quick start
-
-wuwei needs the `rusty` interpreter on your PATH:
-
-```bash
-git clone https://github.com/TheLakeMan/rusty && cd rusty
-cargo install --path . --bin rusty --root ~/.local   # puts `rusty` on PATH
-```
-
-Then, in this repo:
-
-```bash
-./run_tests.sh          # the deterministic proof-gate suite (no LLM)
-```
-
-To watch a real model drive the gate (needs a running `llama-server`-compatible
-endpoint at `localhost:8080`; override with `RUSTY_LLM_URL`):
-
-```bash
-rusty demo-live.lisp
-```
-
-## The guarantee, made concrete
-
-`gate-test.lisp` proves all of this on every run, with no LLM (fully
-reproducible — it's the golden test):
-
-| check | result |
-|-------|--------|
-| read-only registry under read-only budget | `certified` |
-| registry containing `write-file` under read-only budget | **refused: effect-budget-exceeded** |
-| a tool that writes but declares no effects | **refused: undeclared-effects** |
-| in-sandbox read | `ok` |
-| **read `/etc/passwd`** | **rejected: precondition violated** |
-| call a tool not in the registry | **rejected: no such tool** |
-| wrong number of arguments | **rejected: arity** |
-| out-of-sandbox write | **rejected: precondition violated** |
-
-The sandbox agent is *structurally incapable* of reading outside its sandbox,
-and that's checked at the gate before any filesystem access — not enforced by
-hoping the model behaves.
-
 ## Audit export — prove what the agent tried
 
 Every run returns its audit as data: `(step tool input verdict)` rows.
@@ -114,6 +133,8 @@ it, run `mj-breaches` (a claimed jailbreak must show an `ok` verdict the
 policy forbids — the smoking gun, as data), or `mj-audit->kg!` it for
 knowledge-graph queries across runs.
 
+`demo-receipt.lisp` is the copy-paste handoff: persist rows → `mj-breaches`.
+
 ## Files
 
 | file | what |
@@ -121,6 +142,9 @@ knowledge-graph queries across runs.
 | `wuwei.lisp` | the gated runner — certification, dispatch, ReAct loop |
 | `demo-tools.lisp` | filesystem tools (`deftool` wrappers over core builtins) |
 | `gate-test.lisp` / `expected_gate.txt` | the deterministic golden test |
+| `demo-sandbox.lisp` | **60s offline sandbox story** (no LLM) |
+| `demo-receipt.lisp` | **audit → mingjian battle-test receipt** (no LLM) |
+| `fixtures/sandbox-audit.json` | sample audit-save output (regenerated by demo-receipt) |
 | `demo-live.lisp` | a live-LLM episode (benign + hostile goals) |
 | `demo-shot.lisp` | the one-frame "watch it get rejected" demo |
 | `run_tests.sh` | golden-file runner |
@@ -129,6 +153,10 @@ knowledge-graph queries across runs.
 
 Robotics, untrusted-input agents, anything that touches real systems — see
 **[USE_CASES.md](./USE_CASES.md)** for what it's perfect for (and what it isn't).
+
+**Claim (narrow):** the allowlist can't lie — registry is effect-honest and
+every call is precondition-checked. **Not claimed:** unjailbreakable AI, or a
+replacement for OS isolation (run both).
 
 ## License
 
