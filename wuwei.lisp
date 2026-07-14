@@ -118,6 +118,58 @@
           (try-catch (list 'ok (apply safe-call (cons tool args)))
                      (e) (list 'rejected e))))))
 
+;; ── proof-writing macros: reusable, registered safety predicates ─────────────
+;; A precondition runs as (apply pre <all the tool's args>), so it must accept
+;; the tool's full arity. Writing one guard per arity — a 1-arg in-box?, then a
+;; 2-arg wrapper of it — is pure friction. on-path adapts a single-resource
+;; predicate to ANY arity: it checks the first argument (the path / url /
+;; resource being gated) and ignores the rest. defguard names such a guard AND
+;; records it in *guards*, so a registry's safety predicates become inspectable
+;; data you can list (guards) and reuse (guard-of) across tools of any arity.
+(define (on-path pred) (lambda (a . rest) (pred a)))
+(define *guards* '())
+(define (register-guard! name pred) (set! *guards* (cons (list name pred) *guards*)))
+(define (guard-of name)
+  (let loop ((g *guards*))
+    (cond ((null? g) #f)
+          ((equal? (car (car g)) name) (cadr (car g)))
+          (else (loop (cdr g))))))
+(define (guards) (map car *guards*))
+(defmacro defguard (name param . body)
+  ;; (defguard in-box p (and (string? p) (string-starts-with? p BOX) ...))
+  ;; `param` binds the first tool argument; the same guard then gates a 1-arg
+  ;; read-file and a 2-arg write-file, no per-arity wrapper.
+  `(begin
+     (define ,name (on-path (lambda (,param) ,@body)))
+     (register-guard! ',name ,name)
+     ',name))
+
+;; ── refusal-recovery: stop an agent looping against the gate ─────────────────
+;; If the model keeps proposing calls the gate rejects, it burns every step to
+;; max-steps producing nothing. When the last `limit` audit rows are ALL gate
+;; rejections, the agent is stuck; the loop halts early with 'stuck-refusing
+;; rather than spin. (Inside the loop the audit is newest-first.)
+(define *max-consecutive-refusals* 3)
+(define (stuck-refusing? audit limit)
+  (and (>= (length audit) limit)
+       (all? (lambda (r) (equal? (nth r 3) 'rejected)) (take limit audit))))
+
+;; ── streaming audit sink: feed rows to mingjian live, not only at exit ───────
+;; audit-save writes the whole audit once, on termination. When *audit-sink* is
+;; a 1-arg function, the loop hands it each (step tool input verdict) row the
+;; instant it is produced — a live feed. streaming-audit-file returns such a
+;; sink that keeps a growing model file VALID after every step, so mingjian's
+;; mj-load works mid-run, not only at the end.
+(define *audit-sink* #f)
+(define (audit-sink! f) (set! *audit-sink* f))
+(define (audit-sink-off!) (set! *audit-sink* #f))
+(define (emit-audit-row! row) (when *audit-sink* (*audit-sink* row)) row)
+(define (streaming-audit-file file)
+  (let ((rows '()))
+    (lambda (row)
+      (set! rows (cons row rows))
+      (save-model file (reverse rows)))))
+
 ;; ── the gated ReAct loop ────────────────────────────────────────────────────
 (define (tool-menu registry)
   (string-join
@@ -173,13 +225,17 @@
                                     (inp (line-after-tag lines "INPUT:"))
                                     (res (gated-dispatch registry act (if inp inp "")))
                                     (verdict (car res))
-                                    (obs (cadr res)))
+                                    (obs (cadr res))
+                                    (audit2 (cons (list (+ n 1) act inp verdict) audit)))
+                               (emit-audit-row! (car audit2))   ; live feed, if any
                                (println (format "  step ~a: ACTION=~a INPUT=~s  -> ~a"
                                                 (+ n 1) act inp verdict))
-                               (step (+ n 1)
-                                     (format "~a\nStep ~a: ACTION=~a INPUT=~a\nOBSERVATION[~a]: ~a"
-                                             history (+ n 1) act inp verdict obs)
-                                     (cons (list (+ n 1) act inp verdict) audit))))
+                               (if (stuck-refusing? audit2 *max-consecutive-refusals*)
+                                   (list 'halted 'stuck-refusing (reverse audit2))
+                                   (step (+ n 1)
+                                         (format "~a\nStep ~a: ACTION=~a INPUT=~a\nOBSERVATION[~a]: ~a"
+                                                 history (+ n 1) act inp verdict obs)
+                                         audit2))))
                             (else
                              (step (+ n 1)
                                    (format "~a\nThought: ~a" history (str-trim resp))
@@ -190,6 +246,7 @@
 ;; Pull the (step tool input verdict) rows out of any safe-agent result:
 ;;   (done <answer> <audit>)                → the audit
 ;;   (halted max-steps <audit>)             → the audit
+;;   (halted stuck-refusing <audit>)        → the audit (looped against the gate)
 ;;   (halted llm-error <msg> <audit>)       → the audit
 ;;   (refused ...)                          → () — nothing ran, and that IS
 ;;                                            the honest audit of a refusal

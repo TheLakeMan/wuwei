@@ -135,6 +135,24 @@ knowledge-graph queries across runs.
 
 `demo-receipt.lisp` is the copy-paste handoff: persist rows → `mj-breaches`.
 
+**Stream it live.** Set an `*audit-sink*` (see `streaming-audit-file`) and the
+runner hands each row to it the instant it is produced — the model file stays
+mj-load-valid *after every step*, so mingjian can score a run mid-flight, not
+only at exit.
+
+## Hardening helpers
+
+- **Refusal-recovery** — an agent that keeps proposing calls the gate rejects
+  would otherwise burn every step to `max-steps`. When the last N rows are all
+  rejections the loop halts early with `(halted stuck-refusing <audit>)` instead
+  of spinning (`*max-consecutive-refusals*`, default 3; decided by the pure
+  predicate `stuck-refusing?`).
+- **Proof-writing macro** — `(defguard name p <body>)` registers a reusable
+  safety predicate that gates on the resource (first arg) and fits a tool of
+  **any arity**, so one guard serves a 1-arg `read-file` and a 2-arg
+  `write-file` with no per-arity wrapper. Registered guards are inspectable data
+  (`guards`, `guard-of`).
+
 ## Files
 
 | file | what |

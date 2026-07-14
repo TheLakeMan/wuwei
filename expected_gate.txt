@@ -29,4 +29,20 @@ ship v2
 14 audit of a boot refusal (nothing ran)  => ()
 15 saved rows reload identically          => #t
 
+── refusal-recovery: break a loop of gate rejections ────────
+16 3 rejections in a row (limit 3)         => #t
+17 a success breaks the streak             => #f
+18 too few rows to be stuck yet            => #f
+
+── proof-writing macro: one guard, any tool arity ──────────
+19 guard is registered + inspectable       => #t
+20 gates a 1-arg call (in sandbox)         => #t
+21 gates a 2-arg call (path escapes)       => #f
+22 same guard as a 2-arg precondition      => (ok #t)
+
+── streaming audit sink: file valid mid-run, not at exit ────
+23 after 1 streamed row, file has 1 row    => 1
+24 after 2 streamed rows, file has 2 rows  => 2
+25 streamed rows preserve feed order       => #t
+
 gate-test: done

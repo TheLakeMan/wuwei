@@ -76,4 +76,44 @@
 (file-delete AF)
 
 (println "")
+(println "── refusal-recovery: break a loop of gate rejections ────────")
+;; The step loop halts when the last N audit rows are all rejections instead of
+;; spinning to max-steps. The decision is this pure predicate (audit newest-first).
+(row "16 3 rejections in a row (limit 3)        "
+     (stuck-refusing? '((3 t "x" rejected) (2 t "y" rejected) (1 t "z" rejected)) 3))
+(row "17 a success breaks the streak            "
+     (stuck-refusing? '((3 t "x" rejected) (2 t "y" ok) (1 t "z" rejected)) 3))
+(row "18 too few rows to be stuck yet           "
+     (stuck-refusing? '((2 t "x" rejected) (1 t "y" rejected)) 3))
+
+(println "")
+(println "── proof-writing macro: one guard, any tool arity ──────────")
+;; defguard registers a reusable safety predicate that gates on the resource
+;; (first arg) and fits a tool of ANY arity — the wpre-per-arity friction gone.
+(defguard boxed p (and (string? p) (string-starts-with? p BOX) (not (string-contains? p ".."))))
+(row "19 guard is registered + inspectable      " (if (guard-of 'boxed) #t #f))
+(row "20 gates a 1-arg call (in sandbox)        " ((guard-of 'boxed) (string-append BOX "n")))
+(row "21 gates a 2-arg call (path escapes)      " ((guard-of 'boxed) "/etc/passwd" "payload"))
+;; and it works as a real precondition, wired straight into a spec + safe-call:
+(deftool-spec write-file '((path string) (content string)) '(file-write) boxed '())
+(row "22 same guard as a 2-arg precondition     "
+     (gated-dispatch (list write-file) "write-file" (string-append BOX "g.txt | hi")))
+
+(println "")
+(println "── streaming audit sink: file valid mid-run, not at exit ────")
+;; Each row reaches the sink as it is produced; the model file mj-load reads is
+;; valid after every step, not only on termination.
+(define SF (string-append BOX "stream.json"))
+(define sink (streaming-audit-file SF))
+(sink '(1 list-dir "/tmp/wuwei-gatebox/" ok))
+(row "23 after 1 streamed row, file has 1 row   " (length (load-model SF)))
+(sink '(2 read-file "/tmp/wuwei-gatebox/notes.txt" ok))
+(row "24 after 2 streamed rows, file has 2 rows " (length (load-model SF)))
+(row "25 streamed rows preserve feed order      "
+     (equal? (load-model SF)
+             '((1 list-dir "/tmp/wuwei-gatebox/" ok)
+               (2 read-file "/tmp/wuwei-gatebox/notes.txt" ok))))
+(file-delete SF)
+
+(println "")
 (println "gate-test: done")
