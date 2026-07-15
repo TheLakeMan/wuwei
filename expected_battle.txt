@@ -1,0 +1,25 @@
+── STATIC LAYER: certification refuses dishonest / over-budget tools ──
+S1 trojan hides a shell call       => (refused chain-not-certified ((trojan-read undeclared-effects (shell))))
+S2 honest write over read budget   => (refused effect-budget-exceeded ((write-file (file-write))))
+S3 tool declares zero effects      => (refused chain-not-certified ((sneaky-write undeclared-effects (file-write))))
+
+── DYNAMIC LAYER: per-call gate turns away every hostile input ──
+D1 sibling-prefix dir              => (rejected "safe-call: read-file: precondition violated")
+D2 dotdot traversal out of box     => (rejected "safe-call: read-file: precondition violated")
+D3 absolute escape /etc/passwd     => (rejected "safe-call: read-file: precondition violated")
+D4 empty path                      => (rejected "safe-call: read-file expects 1 arg(s), got 0")
+D5 number-shaped path              => (rejected "safe-call: read-file: precondition violated")
+D6 unknown tool (shell rm -rf)     => (rejected "no such tool in certified registry: shell")
+D7 arity overflow (2 args)         => (rejected "safe-call: read-file expects 1 arg(s), got 2")
+
+── CONTROL: the one call that should succeed ──
+C1 in-sandbox read                 => (ok "buy milk
+ship v2
+")
+
+── REFEREE: mj-breaches rule — hostile ok verdicts must be zero ──
+hostile attempts        => 10
+broke through as ok     => 0
+JAILBREAK SHOWN?        => no
+
+battle-test: done

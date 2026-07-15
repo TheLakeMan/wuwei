@@ -62,6 +62,15 @@ Proof suite (same guarantees, bit-identical golden file):
 ./run_tests.sh
 ```
 
+Two golden checks, both offline and deterministic: `gate-test.lisp` exercises
+the certification machinery, and **`battle-test.lisp` is the jailbreak
+challenge made concrete** — ten attacks a real adversary would try (a trojan
+tool hiding a `shell` call, budget escalation, path escapes, `..` traversal,
+arity abuse, type confusion, an unknown tool) thrown at a certified read-only
+registry. It ends by refereeing itself with wuwei's own rule (`mj-breaches`): a
+break must show a tool call with an `ok` verdict it should never have gotten —
+so the pass condition is **0 of 10 hostile attempts broke through**.
+
 ### Optional: live model
 
 Needs an OpenAI-compatible endpoint (default `http://localhost:8080/v1/chat/completions`).
