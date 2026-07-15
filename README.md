@@ -13,9 +13,9 @@ every call.
 ## Try it in 60 seconds (offline — no LLM)
 
 ```bash
-# 1. Install the Rusty interpreter once
-git clone https://github.com/TheLakeMan/rusty && cd rusty
-cargo install --path . --bin rusty --root ~/.local   # needs rustc; puts rusty on PATH
+# 1. Install the Rusty interpreter once (prebuilt Linux binary — no rustc needed)
+curl -fsSL https://raw.githubusercontent.com/TheLakeMan/rusty/main/install.sh | sh
+# (or, any platform with Rust: cargo install rusty-lisp)
 # ensure ~/.local/bin is on PATH
 
 # 2. Clone wuwei and run the sandbox story
