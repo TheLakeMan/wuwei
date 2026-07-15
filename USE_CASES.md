@@ -56,6 +56,15 @@ each one is honest about its effects and that dependencies resolve in order,
 - **Only as strong as the specs you write.** The guarantee is "no effect outside
   the declared budget and preconditions." Loose preconditions = loose bounds.
   wuwei makes the boundary *provable and honest*; you still have to draw it.
+- **A path precondition is a logical fence, not a symlink-proof jail.** A guard
+  that checks a path *string* (e.g. "starts with `/box/`") is defeated by a
+  symlink inside the box pointing out — the OS follows it and the effect lands
+  outside. A **canonicalizing** guard (`safe-under?`, which resolves the real
+  path and rejects symlinked leaves — see `guards.lisp`) closes every *planted*
+  symlink, but a live adversary racing the check (TOCTOU) is a kernel problem,
+  not a Lisp one. For a hostile *filesystem*, compose wuwei's gate with real
+  OS confinement (a container, `bwrap`, namespaces). The gate decides what's
+  permitted; the kernel contains what races anyway.
 - **Deliberately single-endpoint and cooperative** (it inherits Rusty's Rc-based
   runtime) — a safety layer for one agent process, not a distributed orchestrator.
 

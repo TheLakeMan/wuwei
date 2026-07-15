@@ -183,7 +183,10 @@ Robotics, untrusted-input agents, anything that touches real systems — see
 
 **Claim (narrow):** the allowlist can't lie — registry is effect-honest and
 every call is precondition-checked. **Not claimed:** unjailbreakable AI, or a
-replacement for OS isolation (run both).
+replacement for OS isolation (run both). A path guard is a *logical* fence: use
+the canonicalizing `safe-under?` (not a raw string-prefix check) for symlink
+safety, and a real OS sandbox for a hostile filesystem — see
+[USE_CASES.md](./USE_CASES.md).
 
 ## License
 

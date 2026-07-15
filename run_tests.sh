@@ -25,6 +25,7 @@ run_test() {  # file expected label
 echo "Testing wuwei against $("$RUSTY" --version 2>/dev/null || echo "$RUSTY")"
 run_test gate-test.lisp expected_gate.txt "gate-test.lisp (proof gate — deterministic, no LLM)"
 run_test battle-test.lisp expected_battle.txt "battle-test.lisp (jailbreak challenge — 10 attacks, 0 breaches)"
+run_test guards-test.lisp expected_guards.txt "guards-test.lisp (safe-under? closes the symlink escape — needs Rusty ≥0.42.0)"
 
 if [ "$fail" -eq 0 ]; then
   echo "🎉 ALL PASSED"
