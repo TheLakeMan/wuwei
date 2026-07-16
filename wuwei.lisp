@@ -108,15 +108,60 @@
 ;; Returns (ok <result>) or (rejected <reason>). The tool body runs ONLY if
 ;; safe-call's contract (arity + types + precondition) passes; any raise is
 ;; caught and turned into a rejection.
-(define (gated-dispatch registry name raw-arg)
+;; ── certificates: run what you certified ────────────────────────────────────
+;; certify-registry answers "may this registry boot?" — but the answer goes
+;; stale the moment anyone calls deftool-spec again. *tool-specs* is global and
+;; keyed by tool NAME, and deftool-spec REPLACES that name's entry, so a
+;; registry certified at boot can silently end up enforcing a spec it never
+;; certified. That is not hypothetical: two tenants sharing a tool name is
+;; enough (multi-tenant-test.lisp shows tenant A reading tenant B's box).
+;;
+;; Detecting the change is not possible: a precondition is a code value, and
+;; code values are never `equal?` to anything (SPEC §equality) — the pinned spec
+;; cannot even be compared to the live one. So don't detect. HOLD the spec you
+;; certified and enforce that one, via Rusty 0.48.0's safe-call-with-spec. A
+;; later registration then cannot reach a booted tenant at all.
+;;
+;; (certify-boot tools budget) -> (certificate ((tool spec) ...)) | (refused ...)
+(define (certify-boot tools budget)
+  (let ((c (certify-registry tools budget)))
+    (if (not (equal? c 'certified))
+        c
+        (list 'certificate
+              (map (lambda (t) (list t (tool-spec (tool-name t)))) tools)))))
+
+(define (certificate? r)
+  (and (list? r) (not (null? r)) (equal? (car r) 'certificate)))
+(define (cert-entries c) (nth c 1))
+(define (cert-find c name)
+  (let ((hit (filter (lambda (e) (equal? (tool-name (nth e 0)) (string->symbol name)))
+                     (cert-entries c))))
+    (if (null? hit) #f (nth hit 0))))
+
+;; A bare registry looks its spec up live — the pre-certificate behaviour, kept
+;; so existing callers are unchanged (identical checks, identical messages).
+(define (live-entry registry name)
   (let ((tool (find-tool registry name)))
-    (if (not tool)
-        (list 'rejected (format "no such tool in certified registry: ~a" name))
-        (let* ((s     (tool-spec (tool-name tool)))
-               (types (map cadr (spec-param-types s)))
-               (args  (coerce-args (split-args raw-arg) types)))
-          (try-catch (list 'ok (apply safe-call (cons tool args)))
-                     (e) (list 'rejected e))))))
+    (and tool (list tool (tool-spec (tool-name tool))))))
+
+(define (dispatch-entry entry name raw-arg)
+  (if (not entry)
+      (list 'rejected (format "no such tool in certified registry: ~a" name))
+      (let* ((tool  (nth entry 0))
+             (s     (nth entry 1))
+             (types (map cadr (spec-param-types s)))
+             (args  (coerce-args (split-args raw-arg) types)))
+        (try-catch (list 'ok (apply safe-call-with-spec (cons s (cons tool args))))
+                   (e) (list 'rejected e)))))
+
+;; Takes a CERTIFICATE (specs pinned at boot — preferred) or a bare registry
+;; (specs read live). Needs Rusty >= 0.48.0 for safe-call-with-spec.
+(define (gated-dispatch registry name raw-arg)
+  (dispatch-entry
+    (if (certificate? registry)
+        (cert-find registry name)
+        (live-entry registry name))
+    name raw-arg))
 
 ;; ── proof-writing macros: reusable, registered safety predicates ─────────────
 ;; A precondition runs as (apply pre <all the tool's args>), so it must accept

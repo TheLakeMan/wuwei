@@ -11,9 +11,20 @@
 ;;; is global and keyed by TOOL NAME, and deftool-spec REPLACES the entry for
 ;;; that name. Give two tenants their own precondition for the same tool name and
 ;;; the second one wins — for BOTH of them. Tenant A then reads tenant B's box.
-;;; The fix is not subtle either: per-tenant tools get per-tenant NAMES.
 ;;;
-;;; Deterministic, no LLM. Fixture under /tmp only.
+;;; Two answers, and the file ends on the better one:
+;;;   - NAMING DISCIPLINE: per-tenant tools get per-tenant names, so nothing
+;;;     collides. Works, but it is a rule you have to keep remembering.
+;;;   - CERTIFICATES (certify-boot): the spec is pinned at boot and dispatch
+;;;     enforces THAT one, so a later registration cannot reach a tenant that
+;;;     already booted — the shared name from the top of this file becomes safe.
+;;;     Detecting the change instead was never an option: a precondition is a
+;;;     code value, and code values are never equal? to anything (SPEC
+;;;     §equality), so a pinned spec cannot even be compared with the live one.
+;;;
+;;; Deterministic, no LLM. Fixture under /tmp only — nothing outside it is read
+;;; (the escape target is a fixture file, not /etc/passwd: a golden must not
+;;; depend on, or publish, the machine it ran on).
 
 (load "wuwei.lisp")
 (load "guards.lisp")
@@ -29,6 +40,7 @@
 (dir-create BOX-B)
 (file-write (str BOX-A "/mine.txt") "A-DATA")
 (file-write (str BOX-B "/mine.txt") "B-SECRET")
+(file-write (str ROOT "/outside.txt") "NEITHER-TENANTS")
 
 (println "── the footgun: specs are global, keyed by TOOL NAME ──")
 ;; The obvious way to do this is wrong. One tool name, a spec per tenant:
@@ -75,6 +87,35 @@
 ;; The same tool value, judged against two budgets: the tool didn't change, the
 ;; tenant's permission did. That is the boundary composing.
 (row "A's registry under B's budget     " (certify-registry REG-A READ-WRITE))
+
+(println "")
+(println "── certify-boot: hold the spec you certified ──")
+;; Naming discipline works, but it is a rule you have to remember. A certificate
+;; PINS each tool's spec at boot and dispatch enforces THAT one, so a later
+;; registration cannot reach a tenant that already booted. Note what this means:
+;; the shared tool name from the top of this file — the one that leaked — is now
+;; safe, because neither tenant is reading the global table at call time.
+;;
+;; Detection was not an option: a precondition is a code value, and code values
+;; are never equal? to anything (SPEC §equality), so a pinned spec cannot even be
+;; compared with the live one. Holding it is the only honest answer.
+(deftool-spec shared-read '((path string)) '(file-read) (under-guard BOX-A) '())
+(define CERT-A (certify-boot (list shared-read) READ-ONLY))
+(deftool-spec shared-read '((path string)) '(file-read) (under-guard BOX-B) '())
+(define CERT-B (certify-boot (list shared-read) READ-ONLY))
+;; A third party clobbers the global spec entirely — a wide-open fence:
+(deftool-spec shared-read '((path string)) '(file-read) (lambda (p) #t) '())
+
+(row "A (certified) reads its own box   " (gated-dispatch CERT-A "shared-read" (str BOX-A "/mine.txt")))
+(row "A (certified) still cannot see B  " (gated-dispatch CERT-A "shared-read" (str BOX-B "/mine.txt")))
+(row "B (certified) reads its own box   " (gated-dispatch CERT-B "shared-read" (str BOX-B "/mine.txt")))
+(row "B (certified) still cannot see A  " (gated-dispatch CERT-B "shared-read" (str BOX-A "/mine.txt")))
+;; ...while the live global spec now permits anything, which is exactly what a
+;; certified tenant must NOT inherit:
+(row "the live global spec allows all   " (gated-dispatch (list shared-read) "shared-read" (str ROOT "/outside.txt")))
+(row "neither certificate inherited it  " (gated-dispatch CERT-A "shared-read" (str ROOT "/outside.txt")))
+;; A certificate still refuses to exist if the registry is over budget.
+(row "certify-boot refuses over budget  " (certify-boot (list b-write) READ-ONLY))
 
 (shell (str "rm -rf " ROOT))
 (println "")
