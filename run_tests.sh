@@ -24,7 +24,7 @@ run_test() {  # file expected label
 
 echo "Testing wuwei against $("$RUSTY" --version 2>/dev/null || echo "$RUSTY")"
 run_test gate-test.lisp expected_gate.txt "gate-test.lisp (proof gate — deterministic, no LLM)"
-run_test battle-test.lisp expected_battle.txt "battle-test.lisp (jailbreak challenge — 10 attacks, 0 breaches)"
+run_test battle-test.lisp expected_battle.txt "battle-test.lisp (jailbreak challenge — 13 attacks incl. injection + spec clobber, 0 breaches)"
 run_test guards-test.lisp expected_guards.txt "guards-test.lisp (safe-under? closes the symlink escape — needs Rusty ≥0.42.0)"
 run_test net-guards-test.lisp expected_net_guards.txt "net-guards-test.lisp (host-allowed? closes the userinfo escape — offline)"
 run_test multi-tenant-test.lisp expected_multi_tenant.txt "multi-tenant-test.lisp (per-tenant registry + budget; the shared-spec-name leak)"

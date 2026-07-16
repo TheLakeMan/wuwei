@@ -64,12 +64,19 @@ Proof suite (same guarantees, bit-identical golden file):
 
 Two golden checks, both offline and deterministic: `gate-test.lisp` exercises
 the certification machinery, and **`battle-test.lisp` is the jailbreak
-challenge made concrete** — ten attacks a real adversary would try (a trojan
-tool hiding a `shell` call, budget escalation, path escapes, `..` traversal,
-arity abuse, type confusion, an unknown tool) thrown at a certified read-only
-registry. It ends by refereeing itself with wuwei's own rule (`mj-breaches`): a
-break must show a tool call with an `ok` verdict it should never have gotten —
-so the pass condition is **0 of 10 hostile attempts broke through**.
+challenge made concrete** — thirteen attacks a real adversary would try (a
+trojan tool hiding a `shell` call, budget escalation, path escapes, `..`
+traversal, arity abuse, type confusion, an unknown tool) thrown at a certified
+read-only registry. Two of them answer the "AI from inside" question directly: a
+**prompt-injected document** the model reads and then obeys — every obedient act
+still refused, because injection changes what the model *wants*, never what it
+*may* — and a **mid-session spec clobber**, where someone widens a tool's
+precondition after boot, proven unable to reach a `certify-boot` certificate
+(and unreachable by the sandboxed model at all, since it can't call
+`deftool-spec`). It ends by refereeing itself with wuwei's own rule
+(`mj-breaches`): a break must show a tool call with an `ok` verdict it should
+never have gotten — so the pass condition is **0 of 13 hostile attempts broke
+through**.
 
 ### Optional: live model
 
