@@ -65,6 +65,19 @@ each one is honest about its effects and that dependencies resolve in order,
   not a Lisp one. For a hostile *filesystem*, compose wuwei's gate with real
   OS confinement (a container, `bwrap`, namespaces). The gate decides what's
   permitted; the kernel contains what races anyway.
+- **A host allowlist is a logical fence too, and it stops at the request.** The
+  same defect appears one layer out: `https://api.good.com@evil.com/` *starts
+  with* the allowed origin and goes to evil.com — everything before an `@` is a
+  label, not a destination. `host-allowed?` (`guards.lisp`) matches on the
+  **parsed host**, never the URL string. What it does **not** do: follow the
+  request. An allowed host that answers `302 -> https://evil.com/` lands
+  off-allowlist, and the gate cannot see it — the redirect happens inside the
+  HTTP client, after the check said yes. Disable redirects in the tool (`curl`
+  without `-L`) or re-gate every hop. DNS isn't fenced either: an allowed *name*
+  that resolves to an attacker's address still passes, because the name is what
+  is checked. Ports aren't fenced, and IDN/punycode homographs are out of scope.
+  Same lesson as the symlink: the fence is logical; the network is the kernel's
+  problem.
 - **Deliberately single-endpoint and cooperative** (it inherits Rusty's Rc-based
   runtime) — a safety layer for one agent process, not a distributed orchestrator.
 

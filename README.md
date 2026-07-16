@@ -183,10 +183,13 @@ Robotics, untrusted-input agents, anything that touches real systems — see
 
 **Claim (narrow):** the allowlist can't lie — registry is effect-honest and
 every call is precondition-checked. **Not claimed:** unjailbreakable AI, or a
-replacement for OS isolation (run both). A path guard is a *logical* fence: use
-the canonicalizing `safe-under?` (not a raw string-prefix check) for symlink
-safety, and a real OS sandbox for a hostile filesystem — see
-[USE_CASES.md](./USE_CASES.md).
+replacement for OS isolation (run both). Guards are *logical* fences: use the
+canonicalizing `safe-under?` (not a raw string-prefix check) for symlink safety,
+and `host-allowed?` (which matches the **parsed host**, so
+`https://api.good.com@evil.com/` is rejected rather than waved through) for
+network scopes — but neither follows what happens next: a hostile filesystem
+needs a real OS sandbox, and a redirect off an allowed host lands off-allowlist.
+See [USE_CASES.md](./USE_CASES.md).
 
 ## License
 

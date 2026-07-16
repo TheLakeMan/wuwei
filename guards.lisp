@@ -55,3 +55,123 @@
 ;;   (deftool-spec read-file '((path string)) '(file-read) (under-guard BOX) '())
 (define (under-guard box)
   (lambda (p . rest) (safe-under? box p)))
+
+
+;;; ── Host allowlists — the same shape, one layer out ─────────────────────────
+;;;
+;;; A precondition that checks a URL *string* ("starts with https://api.good.com")
+;;; has the same defect the path-prefix guard had, and it is not a subtle one:
+;;;
+;;;     https://api.good.com@evil.com/steal
+;;;
+;;; That URL starts with "https://api.good.com". The request goes to **evil.com**.
+;;; Everything before an "@" in the authority is *userinfo* — a label, not a
+;;; destination. It is the symlink of URLs: the string says one thing, the effect
+;;; lands somewhere else. Its cousins:
+;;;
+;;;     https://good.com.evil.com/     — starts-with "good.com" passes; host is evil.com
+;;;     http://evil.com/?u=good.com    — a "contains" guard passes; host is evil.com
+;;;
+;;; So: parse the host the way the network will read it, then match it. Same rule
+;;; as safe-under? — resolve what will ACTUALLY be reached before deciding.
+;;;
+;;; Be precise about WHERE the danger is, because it is easy to oversell this.
+;;; A string guard fails OPEN on the URLs above: it says yes, and the request
+;;; goes to evil.com. That is the hole. A guard that parses the authority at all
+;;; — even badly — fails CLOSED on them: a mangled "api.good.com@evil.com"
+;;; matches no allowlist entry, so it is rejected. Parsing *correctly* is
+;;; therefore not what saves you from the attack; it is what keeps the fence
+;;; honest while still admitting the legitimate URLs (userinfo, ports, mixed
+;;; case, trailing dots) that a sloppy parser would reject for the wrong reason.
+;;; The security claim here is small and exact: **match on the parsed host, never
+;;; on the URL string.**
+;;;
+;;; HONEST SCOPE, and it matters as much as the guard does:
+;;;   - This fences the URL you hand it. It does NOT follow the request. An
+;;;     allowed host that answers 302 -> https://evil.com/ lands off-allowlist,
+;;;     and nothing here can see that: the redirect happens inside the HTTP
+;;;     client, after the gate said yes. Same shape as the symlink TOCTOU —
+;;;     a runtime job, not a language one. Disable redirects in the tool
+;;;     (`curl` without -L), or re-gate every hop.
+;;;   - DNS is not fenced either: an allowed name that resolves to an attacker's
+;;;     address (rebinding, poisoned resolver, hostile /etc/hosts) still passes.
+;;;     The name is what's checked, never the address it becomes.
+;;;   - ASCII hosts only. IDN/punycode is out of scope: homograph domains
+;;;     (gооgle.com in Cyrillic) are a display problem this does not solve.
+;;;   - Ports are not fenced: good.com:8443 is the same HOST as good.com. If a
+;;;     port matters to you, that is a different guard.
+
+;; ASCII case folding — hostnames are ASCII by definition (that's what punycode
+;; is for), and DNS is case-insensitive, so this is exactly the right fold.
+(define *guard-upper* "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+(define *guard-lower* "abcdefghijklmnopqrstuvwxyz")
+(define (char-downcase c)
+  (let ((i (string-first-index *guard-upper* c)))
+    (if i (substring *guard-lower* i (+ i 1)) c)))
+(define (ascii-downcase s)
+  (string-append-list (map char-downcase (string->list s))))
+
+(define (string-ends-with? s suffix)
+  (let ((ls (string-length s)) (lf (string-length suffix)))
+    (and (>= ls lf) (equal? (substring s (- ls lf) ls) suffix))))
+
+;; Cut s at the first occurrence of any delimiter in `chars` (list of 1-char
+;; strings); the authority ends at whichever comes first.
+(define (cut-at s chars)
+  (let loop ((i 0))
+    (cond ((>= i (string-length s)) s)
+          ((string-member? (substring s i (+ i 1)) chars) (substring s 0 i))
+          (else (loop (+ i 1))))))
+
+;; The HOST a URL actually reaches: lowercase, no userinfo, no port, no trailing
+;; dot. #f when there is no host we can be sure of — and being unsure is a
+;; rejection, never a shrug.
+(define (url-host url)
+  (and (string? url)
+       ;; NB substr-index returns -1 on a miss, and in Rusty ONLY #f is false —
+       ;; so a bare (and i ...) accepts -1 and (substring url (+ -1 3)) happily
+       ;; invents a host out of a URL that has no scheme at all. It did exactly
+       ;; that here, and admitted "//api.good.com/x". Compare against 0.
+       (let ((i (substr-index url "://")))
+         (and (>= i 0)                             ; no scheme -> we don't guess
+              (let* ((rest (substring url (+ i 3) (string-length url)))
+                     ;; authority ends at the first / ? or #
+                     (auth (cut-at rest (list "/" "?" "#")))
+                     ;; userinfo: everything before the LAST "@" is a label.
+                     ;; Last, not first — "a@b@evil.com" is evil.com.
+                     (at   (string-last-index auth "@"))
+                     (hp   (if at (substring auth (+ at 1) (string-length auth)) auth))
+                     ;; port: [::1]:8080 keeps its brackets; host:8080 does not
+                     (host (if (string-starts-with? hp "[")
+                               (let ((close (string-first-index hp "]")))
+                                 (if close (substring hp 0 (+ close 1)) hp))
+                               (cut-at hp (list ":"))))
+                     (h    (ascii-downcase host))
+                     ;; "good.com." and "good.com" are the same name to DNS
+                     (h2   (if (and (> (string-length h) 1) (string-ends-with? h "."))
+                               (substring h 0 (- (string-length h) 1))
+                               h)))
+                (and (> (string-length h2) 0) h2))))))
+
+;; One allowlist entry vs a parsed host. EXACT by default — a bare "good.com"
+;; does NOT admit "anything.good.com". Subdomains are opt-in, spelled "*.good.com",
+;; and that form admits subdomains ONLY (list the apex too if you want it).
+;; Explicit beats convenient: if an attacker can get a subdomain of yours, an
+;; implicit-subdomain default hands them the fence.
+(define (host-matches? entry host)
+  (let ((e (ascii-downcase entry)))
+    (if (string-starts-with? e "*.")
+        (let ((base (substring e 1 (string-length e))))   ; ".good.com"
+          (string-ends-with? host base))
+        (equal? host e))))
+
+;; The guard. allowed = a list of host entries.
+(define (host-allowed? allowed url)
+  (let ((h (url-host url)))
+    (and h (not (null? (filter (lambda (e) (host-matches? e h)) allowed))))))
+
+;; Adapt into a precondition of ANY tool arity, gating on the first argument
+;; (the URL) — the network twin of under-guard:
+;;   (deftool-spec http-get '((url string)) '(shell) (host-guard ALLOWED) '())
+(define (host-guard allowed)
+  (lambda (u . rest) (host-allowed? allowed u)))

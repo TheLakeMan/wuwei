@@ -1,0 +1,41 @@
+── what the request will actually reach ──
+plain host                         => "api.good.com"
+userinfo label before @            => "evil.com"
+two @s: the LAST one wins          => "evil.com"
+port is not part of the host       => "api.good.com"
+case folds (DNS is insensitive)    => "api.good.com"
+trailing dot is the same name      => "api.good.com"
+query string is not the host       => "evil.com"
+IPv6 keeps its brackets            => "[::1]"
+no scheme: we do not guess         => #f
+scheme-relative: still no scheme   => #f
+not a string                       => #f
+
+── the prefix-string guard's blind spot ──
+prefix-guard admits userinfo trick => #t
+prefix-guard admits suffix trick   => #t
+
+── host-allowed? parses first, then decides ──
+legit allowed host                 => #t
+userinfo trick -> evil.com         => #f
+suffix trick -> evil.com           => #f
+allowed host in the QUERY only     => #f
+mixed case is still allowed        => #t
+trailing dot is still allowed      => #t
+a port does not change the host    => #t
+scheme-relative: no host to check  => #f
+off-allowlist host                 => #f
+
+── subdomains are opt-in, never implied ──
+sub of a bare entry: NOT allowed   => #f
+*.cdn.good.com admits a subdomain  => #t
+*.cdn.good.com admits deeper subs  => #t
+*.cdn.good.com does NOT admit apex => #f
+...nor a lookalike of it           => #f
+
+── end to end through the wuwei gate ──
+gate: allowed host (ok)            => (ok "FETCHED https://api.good.com/v1/x")
+gate: userinfo trick (rejected)    => (rejected "safe-call: http-get: precondition violated")
+gate: off-allowlist (rejected)     => (rejected "safe-call: http-get: precondition violated")
+
+net-guards-test: done
