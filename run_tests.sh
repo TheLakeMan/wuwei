@@ -29,6 +29,32 @@ run_test guards-test.lisp expected_guards.txt "guards-test.lisp (safe-under? clo
 run_test net-guards-test.lisp expected_net_guards.txt "net-guards-test.lisp (host-allowed? closes the userinfo escape — offline)"
 run_test multi-tenant-test.lisp expected_multi_tenant.txt "multi-tenant-test.lisp (per-tenant registry + budget; the shared-spec-name leak)"
 
+# ── Package check: wuwei is a valid, cwd-independent Rusty package ─────────────
+# Copies wuwei into a throwaway $HOME/.rusty/packages/wuwei (where pkg would put
+# it) and runs the probe from an UNRELATED cwd — proving the manifest is
+# well-formed and the package entry (wuwei-pkg.lisp) loads gate + guards despite
+# Rusty's cwd-relative `load`. No pkg.lisp, LLM, or network.
+pkg_entry_check() {
+  local label="package — manifest valid + entry loads from a foreign cwd"
+  local repo; repo="$(pwd)"
+  local th; th="$(mktemp -d "${TMPDIR:-/tmp}/wuwei-pkg-XXXXXX")"
+  case "$th" in /tmp/*|"${TMPDIR%/}"/*) ;; *) echo "❌  $label (unsafe tmp: $th)"; fail=1; return;; esac
+  local dest="$th/.rusty/packages/wuwei"
+  mkdir -p "$dest"
+  cp package.lisp wuwei-pkg.lisp wuwei.lisp guards.lisp "$dest/"
+
+  local out; out="$(cd "$th" && HOME="$th" "$RUSTY" "$repo/wuwei-pkg-probe.lisp" 2>&1)" || true
+
+  local ok=1
+  printf '%s\n' "$out" | grep -q '^MANIFEST-OK$'         || { echo "   manifest not well-formed"; ok=0; }
+  printf '%s\n' "$out" | grep -q '^PKG-ENTRY-OK$'        || { echo "   package entry did not load gate + guards"; ok=0; }
+  printf '%s\n' "$out" | grep -q '^SELFCHECK-GUARDED-OK$' || { echo "   wuwei-self-check did not degrade without pkg.lisp"; ok=0; }
+
+  rm -rf "$th"
+  if [ "$ok" -eq 1 ]; then echo "✅  $label"; else echo "❌  $label"; fail=1; fi
+}
+pkg_entry_check
+
 if [ "$fail" -eq 0 ]; then
   echo "🎉 ALL PASSED"
 else

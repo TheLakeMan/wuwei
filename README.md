@@ -162,11 +162,43 @@ only at exit.
   `write-file` with no per-arity wrapper. Registered guards are inspectable data
   (`guards`, `guard-of`).
 
+## Install as a verified package
+
+wuwei is a [Rusty package](https://github.com/TheLakeMan/rusty) — a git repo with
+a `package.lisp` manifest — so instead of "clone and trust" you can install it in
+a way you can *check*:
+
+```lisp
+(load "pkg.lisp")                                     ; Rusty's package manager
+(pkg-install "https://github.com/TheLakeMan/wuwei")   ; clone + auto-lock
+(pkg-load "wuwei")                                     ; gate + guards
+```
+
+`pkg-install` records a fingerprint — every file with its SHA-256 — the moment
+the clone lands, stored *outside* the package tree. From then on:
+
+- `(wuwei-self-check)` — has wuwei's own installed code drifted since install day?
+  → `verified`, or `(changed ((file what) …))` naming exactly what moved.
+- `(pkg-verify "wuwei" fp)` — do the installed bytes match a fingerprint the
+  publisher gave you **out of band** (a release note, never one shipped inside
+  wuwei's own repo)? → `verified` / `changed`.
+
+**What this hardens, exactly.** It hardens *distribution* — "these are the bytes
+that were published, and nothing changed them since" — not runtime. It is the
+supply-side twin of wuwei's own discipline: it tells you whether the gate's code
+*changed*, never that running it is *safe*. It is not a sandbox, and no defense
+against a determined local attacker (who can rewrite the lock) or a hostile
+publisher (whose out-of-band fingerprint you would be trusting).
+
 ## Files
 
 | file | what |
 |------|------|
 | `wuwei.lisp` | the gated runner — certification, dispatch, ReAct loop |
+| `guards.lisp` | reusable filesystem/host guards — `safe-under?`, `host-allowed?` |
+| `package.lisp` | Rusty package manifest — `name` / `version` / `main` |
+| `wuwei-pkg.lisp` | package entry (`main`) — absolute-path load of gate + guards + `wuwei-self-check` |
+| `wuwei-pkg-probe.lisp` | package check — manifest valid + entry loads from a foreign cwd |
 | `demo-tools.lisp` | filesystem tools (`deftool` wrappers over core builtins) |
 | `gate-test.lisp` / `expected_gate.txt` | the deterministic golden test |
 | `demo-sandbox.lisp` | **60s offline sandbox story** (no LLM) |
