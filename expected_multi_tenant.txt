@@ -1,0 +1,18 @@
+── the footgun: specs are global, keyed by TOOL NAME ──
+A reads B's secret (LEAK)          => (ok "B-SECRET")
+A rejected from its OWN box        => (rejected "safe-call: shared-read: precondition violated")
+
+── the fix: a tenant's tools carry the tenant's name ──
+A reads its own box (ok)           => (ok "A-DATA")
+A cannot reach B's box             => (rejected "safe-call: a-read: precondition violated")
+B reads its own box (ok)           => (ok "B-SECRET")
+B cannot reach A's box             => (rejected "safe-call: b-read: precondition violated")
+A has no write tool to call        => (rejected "no such tool in certified registry: b-write")
+
+── budgets are per tenant, and they are a BOOT check ──
+A read-only: certifies             => certified
+B read-write: certifies            => certified
+B's registry under A's budget      => (refused effect-budget-exceeded ((b-write (file-write))))
+A's registry under B's budget      => certified
+
+multi-tenant-test: done

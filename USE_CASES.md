@@ -78,6 +78,15 @@ each one is honest about its effects and that dependencies resolve in order,
   is checked. Ports aren't fenced, and IDN/punycode homographs are out of scope.
   Same lesson as the symlink: the fence is logical; the network is the kernel's
   problem.
+- **Multi-tenant needs per-tenant tool NAMES — this one bites silently.**
+  `*tool-specs*` is global and keyed by tool name, and `deftool-spec` *replaces*
+  the entry for that name. Give two tenants their own precondition for the same
+  tool name and the second registration wins **for both of them**: tenant A's
+  registry then enforces tenant B's fence, so A is refused its own box and reads
+  B's. `multi-tenant-test.lisp` proves exactly that, then shows the fix — give a
+  tenant's tools the tenant's name (`a-read`, `b-read`), so there is nothing to
+  collide. Budgets compose the same way and are a **boot** check: a registry that
+  exceeds its tenant's budget never certifies, so that tenant never starts.
 - **Deliberately single-endpoint and cooperative** (it inherits Rusty's Rc-based
   runtime) — a safety layer for one agent process, not a distributed orchestrator.
 
