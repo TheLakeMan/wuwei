@@ -234,6 +234,11 @@ See [USE_CASES.md](./USE_CASES.md).
 
 Copyright (c) 2026 Nicholas Vermeulen. Licensed under the GNU Affero General
 Public License v3 or later (**AGPL-3.0-or-later**) — see [LICENSE](./LICENSE).
-Commercial licensing is available on inquiry.
+Commercial licensing is available on inquiry — see [COMMERCIAL.md](./COMMERCIAL.md)
+or contact <thelakeman@protonmail.com>.
+
+Contributions require a short license grant that keeps wuwei relicensable as a
+whole — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the CLA and the standards
+every change must meet.
 
 ☯ *Built on [Rusty](https://github.com/TheLakeMan/rusty). In memory of my brother.*
