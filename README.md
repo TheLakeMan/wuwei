@@ -10,6 +10,10 @@ every call.
 ~160 lines of pure Lisp, **zero new interpreter code**. Built on Rusty's
 `certify-tool-chain`, `safe-call`, and `check-effects`.
 
+![15-second demo: a lying tool registry refused at boot, an out-of-sandbox read rejected per-call, an over-budget agent never starts](demo.gif)
+
+*Live above: `rusty demo-refusal.lisp` — deterministic, offline, no LLM. Run it yourself after the install below.*
+
 ## Try it in 60 seconds (offline — no LLM)
 
 ```bash
