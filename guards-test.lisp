@@ -6,7 +6,7 @@
 ;;; OUT — and shows a string-prefix guard would wave them through while the
 ;;; canonicalizing safe-under? (guards.lisp) rejects every one and still admits
 ;;; the legitimate reads. Deterministic: only verdicts are printed, never the
-;;; absolute fixture paths. Requires Rusty ≥0.78.0 (file-symlink?/file-realpath,
+;;; absolute fixture paths. Requires Rusty ≥0.78.1 (file-symlink?/file-realpath,
 ;;; and file-hardlink? for the hardlink-escape rows).
 
 (load "wuwei.lisp")
@@ -26,6 +26,7 @@
 (shell (str "ln -s " OUT "/gone.txt "   BOX "/symlink-dangling.txt"))  ; -> nonexistent outside
 (shell (str "ln -s " OUT " "            BOX "/dirlink"))               ; -> outside directory
 (shell (str "ln "    OUT "/secret.txt " BOX "/hardlink.txt"))         ; -> HARDLINK: same inode, no symlink
+(shell (str "mkfifo " OUT "/pipe; ln " OUT "/pipe " BOX "/hardlink-fifo")) ; -> HARDLINK to an OUTSIDE fifo (non-regular)
 
 (define (row tag v) (println (format "~a => ~s" tag v)))
 
@@ -43,6 +44,7 @@
 (row "DANGLING symlink -> outside       " (safe-under? BOX (str BOX "/symlink-dangling.txt")))
 (row "write through a symlinked dir     " (safe-under? BOX (str BOX "/dirlink/pwned.txt")))
 (row "HARDLINK leaf -> outside inode    " (safe-under? BOX (str BOX "/hardlink.txt")))
+(row "HARDLINK to an outside fifo       " (safe-under? BOX (str BOX "/hardlink-fifo")))
 (row "dotdot traversal                  " (safe-under? BOX (str BOX "/../outside/secret.txt")))
 (row "absolute escape                   " (safe-under? BOX "/etc/passwd"))
 
@@ -63,7 +65,7 @@
 (row "gate: legit write (ok)            " (gated-dispatch WREG "write-file" (str BOX "/fresh.txt | ok")))
 (row "gate: write thru symlinked dir    " (gated-dispatch WREG "write-file" (str BOX "/dirlink/pwned.txt | HACKED")))
 (row "  outside stayed untouched?       " (not (file-exists? (str OUT "/pwned.txt"))))
-;; Hardlink escape (needs Rusty ≥0.78.0 file-hardlink?): a read AND a write
+;; Hardlink escape (needs Rusty ≥0.78.1 file-hardlink?): a read AND a write
 ;; through an in-box hardlink whose sibling name is outside the box, both
 ;; refused before the shared inode is touched.
 (row "gate: read a hardlink (rejected)  " (gated-dispatch REG  "read-file"  (str BOX "/hardlink.txt")))

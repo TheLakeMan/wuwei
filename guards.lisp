@@ -8,7 +8,7 @@
 ;;; REAL location first, using Rusty's no-follow primitives:
 ;;;   file-symlink?  (≥0.42.0) — lstat: is the path itself a symlink (incl. dangling)?
 ;;;   file-realpath  (≥0.42.0) — canonicalize: real absolute path, or Nil if unresolvable.
-;;;   file-hardlink? (≥0.78.0) — lstat: a regular file whose inode has >1 name?
+;;;   file-hardlink? (≥0.78.1) — lstat: a non-dir, non-symlink leaf, >1 name?
 ;;;
 ;;; It rejects any symlink LEAF outright (a confinement guard never writes/reads
 ;;; through one); rejects a HARDLINKED leaf too — a second name on the same inode

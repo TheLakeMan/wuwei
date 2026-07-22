@@ -9,6 +9,7 @@ symlink -> existing outside file   => #f
 DANGLING symlink -> outside        => #f
 write through a symlinked dir      => #f
 HARDLINK leaf -> outside inode     => #f
+HARDLINK to an outside fifo        => #f
 dotdot traversal                   => #f
 absolute escape                    => #f
 
