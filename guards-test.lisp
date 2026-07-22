@@ -72,6 +72,16 @@
 (row "gate: write a hardlink (rejected) " (gated-dispatch WREG "write-file" (str BOX "/hardlink.txt | PWNED")))
 (row "  outside inode still \"SECRET\"?    " (equal? (file-read (str OUT "/secret.txt")) "SECRET"))
 
+;; A 2-PATH tool (copy src -> dst). under-guard would confine src but leave dst
+;; free; under-guard-paths gates BOTH positions, so an escaping dst is refused.
+(deftool copy-file (src dst) "Copy src to dst" (file-write dst (file-read src)))
+(deftool-spec copy-file '((src string) (dst string)) '(file-read file-write)
+              (under-guard-paths BOX '(0 1)) '())
+(define CREG (list copy-file))
+(row "gate: copy, dst escapes (rejected)" (gated-dispatch CREG "copy-file" (str BOX "/notes.txt | " OUT "/stolen.txt")))
+(row "gate: copy, both in box (ok)      " (gated-dispatch CREG "copy-file" (str BOX "/notes.txt | " BOX "/copy.txt")))
+(row "  outside got no stolen file?     " (not (file-exists? (str OUT "/stolen.txt"))))
+
 (shell (str "rm -rf " ROOT))
 (println "")
 (println "guards-test: done")

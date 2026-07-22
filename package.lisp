@@ -12,5 +12,5 @@
 ;; from an arbitrary working directory and Rusty's `load` is CWD-relative, so the
 ;; entry loads its siblings (wuwei.lisp + guards.lisp) by absolute path.
 ((name "wuwei")
- (version "0.2.3")
+ (version "0.2.4")
  (main "wuwei-pkg.lisp"))

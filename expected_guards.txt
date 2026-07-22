@@ -23,5 +23,8 @@ gate: write thru symlinked dir     => (rejected "safe-call: write-file: precondi
 gate: read a hardlink (rejected)   => (rejected "safe-call: read-file: precondition violated")
 gate: write a hardlink (rejected)  => (rejected "safe-call: write-file: precondition violated")
   outside inode still "SECRET"?     => #t
+gate: copy, dst escapes (rejected) => (rejected "safe-call: copy-file: precondition violated")
+gate: copy, both in box (ok)       => (ok #t)
+  outside got no stolen file?      => #t
 
 guards-test: done

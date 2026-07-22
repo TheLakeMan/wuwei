@@ -58,11 +58,24 @@
                          (and pc (str pc "/" (path-basename path)))))))
            (and (string? rp) (path-under? bc rp))))))
 
-;; Adapt safe-under? into a precondition of ANY tool arity, gating on the first
-;; argument (the path). Pairs with deftool-spec exactly like in-box? did:
+;; Adapt safe-under? into a precondition of ANY tool arity, gating on the FIRST
+;; argument (the path) and ignoring the rest. Correct for a single-path tool —
+;; read-file, and write-file whose 2nd arg is DATA written into the already-gated
+;; path, not a path itself. Pairs with deftool-spec exactly like in-box? did:
 ;;   (deftool-spec read-file '((path string)) '(file-read) (under-guard BOX) '())
 (define (under-guard box)
   (lambda (p . rest) (safe-under? box p)))
+
+;; For a tool that takes MORE THAN ONE path argument (e.g. copy src -> dst),
+;; under-guard would confine only src and leave dst free. A guard can't tell a
+;; path arg from a data arg, so the author names the 0-based positions that are
+;; paths; EVERY one must sit under the box. Blindly gating all args is wrong —
+;; it would reject a write's content string — which is why this is explicit.
+;;   (deftool-spec copy '((src string) (dst string)) '(file-read file-write)
+;;                 (under-guard-paths BOX '(0 1)) '())
+(define (under-guard-paths box positions)
+  (lambda args
+    (all? (lambda (i) (safe-under? box (nth args i))) positions)))
 
 
 ;;; ── Host allowlists — the same shape, one layer out ─────────────────────────
