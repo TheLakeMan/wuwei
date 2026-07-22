@@ -50,6 +50,16 @@
 (row "gate: symlink read (rejected)     " (gated-dispatch REG "read-file" (str BOX "/symlink-existing.txt")))
 (row "gate: dangling symlink (rejected) " (gated-dispatch REG "read-file" (str BOX "/symlink-dangling.txt")))
 
+;; A 2-arg WRITE tool, gating on the first arg (the path) via the same
+;; variadic under-guard. Pins that a write whose path traverses a symlinked
+;; DIRECTORY component is refused end-to-end — the read-only rows above only
+;; exercise a symlink LEAF on a 1-arg tool. Raw-arg is "path | content".
+(deftool-spec write-file '((path string) (content string)) '(file-write) (under-guard BOX) '())
+(define WREG (list write-file))
+(row "gate: legit write (ok)            " (gated-dispatch WREG "write-file" (str BOX "/fresh.txt | ok")))
+(row "gate: write thru symlinked dir    " (gated-dispatch WREG "write-file" (str BOX "/dirlink/pwned.txt | HACKED")))
+(row "  outside stayed untouched?       " (not (file-exists? (str OUT "/pwned.txt"))))
+
 (shell (str "rm -rf " ROOT))
 (println "")
 (println "guards-test: done")

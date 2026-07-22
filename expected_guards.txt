@@ -14,5 +14,8 @@ absolute escape                    => #f
 gate: legit read (ok)              => (ok "legit")
 gate: symlink read (rejected)      => (rejected "safe-call: read-file: precondition violated")
 gate: dangling symlink (rejected)  => (rejected "safe-call: read-file: precondition violated")
+gate: legit write (ok)             => (ok #t)
+gate: write thru symlinked dir     => (rejected "safe-call: write-file: precondition violated")
+  outside stayed untouched?        => #t
 
 guards-test: done

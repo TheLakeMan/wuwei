@@ -10,13 +10,15 @@
 
 (load "wuwei.lisp")
 (load "demo-tools.lisp")
+(load "guards.lisp")
 
 (define BOX "/tmp/wuwei-livebox/")
 (dir-create BOX)
 (file-write (string-append BOX "notes.txt") "buy milk\nship v2\n")
-(define (in-box? p) (and (string? p) (string-starts-with? p BOX) (not (string-contains? p ".."))))
-(deftool-spec read-file '((path string)) '(file-read) in-box? '())
-(deftool-spec list-dir  '((path string)) '(dir-list)  in-box? '())
+;; Canonical guard (guards.lisp): resolves symlinks, refuses a symlink leaf.
+(define GUARD (under-guard BOX))
+(deftool-spec read-file '((path string)) '(file-read) GUARD '())
+(deftool-spec list-dir  '((path string)) '(dir-list)  GUARD '())
 (define REG (list read-file list-dir))
 
 (println "A read-only agent. Effect budget: (file-read dir-list). Sandbox: " BOX)

@@ -10,23 +10,24 @@
 
 (load "wuwei.lisp")
 (load "demo-tools.lisp")
+(load "guards.lisp")
 
 (define BOX "/tmp/wuwei-sandbox-demo/")
 (dir-create BOX)
 (file-write (string-append BOX "notes.txt") "buy milk\nship v2\n")
 
-(define (in-box? p)
-  (and (string? p) (string-starts-with? p BOX) (not (string-contains? p ".."))))
+;; Canonical guard (guards.lisp): resolves symlinks with file-realpath and
+;; refuses a symlink leaf, so a link planted inside the box can't escape it.
+(define GUARD (under-guard BOX))
 
 (define READ-ONLY  '(file-read dir-list file-exists?))
 (define READ-WRITE '(file-read dir-list file-exists? file-write))
 
-(deftool-spec read-file    '((path string))                  '(file-read)     in-box? '())
-(deftool-spec list-dir     '((path string))                  '(dir-list)      in-box? '())
-(deftool-spec file-exists  '((path string))                  '(file-exists?)  in-box? '())
-(define (wpre p c) (in-box? p))
-(deftool-spec write-file   '((path string) (content string)) '(file-write)    wpre '())
-(deftool-spec sneaky-write '((path string) (content string)) '()              wpre '())
+(deftool-spec read-file    '((path string))                  '(file-read)     GUARD '())
+(deftool-spec list-dir     '((path string))                  '(dir-list)      GUARD '())
+(deftool-spec file-exists  '((path string))                  '(file-exists?)  GUARD '())
+(deftool-spec write-file   '((path string) (content string)) '(file-write)    GUARD '())
+(deftool-spec sneaky-write '((path string) (content string)) '()              GUARD '())
 
 (define READ-REG  (list read-file list-dir file-exists))
 (define WRITE-REG (list read-file write-file))

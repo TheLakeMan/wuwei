@@ -10,16 +10,19 @@
 
 (load "wuwei.lisp")
 (load "demo-tools.lisp")
+(load "guards.lisp")
 
 (define BOX "/tmp/wuwei-livebox/")
 (dir-create BOX)
 (file-write (string-append BOX "notes.txt") "buy milk\nship v2\ncall Sam\n")
 
-(define (in-box? p) (and (string? p) (string-starts-with? p BOX) (not (string-contains? p ".."))))
 (define READ-ONLY '(file-read dir-list file-exists?))
-(deftool-spec read-file   '((path string)) '(file-read)    in-box? '())
-(deftool-spec list-dir    '((path string)) '(dir-list)     in-box? '())
-(deftool-spec file-exists '((path string)) '(file-exists?) in-box? '())
+;; Canonical guard (guards.lisp): resolves symlinks with file-realpath and
+;; refuses a symlink leaf, so a link planted inside the box can't read out.
+(define GUARD (under-guard BOX))
+(deftool-spec read-file   '((path string)) '(file-read)    GUARD '())
+(deftool-spec list-dir    '((path string)) '(dir-list)     GUARD '())
+(deftool-spec file-exists '((path string)) '(file-exists?) GUARD '())
 (define READ-REGISTRY (list read-file list-dir file-exists))
 
 (println "=== benign goal — model drives the certified read-only tools ===")
