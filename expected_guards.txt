@@ -1,5 +1,6 @@
 ── the prefix-string guard's blind spot ──
 prefix-guard admits a symlink leaf  => #t
+prefix-guard admits a hardlink too  => #t
 
 ── safe-under? resolves the real location first ──
 legit file (real, in box)          => #t
@@ -7,6 +8,7 @@ legit NEW file (not yet created)   => #t
 symlink -> existing outside file   => #f
 DANGLING symlink -> outside        => #f
 write through a symlinked dir      => #f
+HARDLINK leaf -> outside inode     => #f
 dotdot traversal                   => #f
 absolute escape                    => #f
 
@@ -17,5 +19,8 @@ gate: dangling symlink (rejected)  => (rejected "safe-call: read-file: precondit
 gate: legit write (ok)             => (ok #t)
 gate: write thru symlinked dir     => (rejected "safe-call: write-file: precondition violated")
   outside stayed untouched?        => #t
+gate: read a hardlink (rejected)   => (rejected "safe-call: read-file: precondition violated")
+gate: write a hardlink (rejected)  => (rejected "safe-call: write-file: precondition violated")
+  outside inode still "SECRET"?     => #t
 
 guards-test: done

@@ -6,13 +6,14 @@
 ;;; OUT — and shows a string-prefix guard would wave them through while the
 ;;; canonicalizing safe-under? (guards.lisp) rejects every one and still admits
 ;;; the legitimate reads. Deterministic: only verdicts are printed, never the
-;;; absolute fixture paths. Requires Rusty ≥0.42.0 (file-symlink?/file-realpath).
+;;; absolute fixture paths. Requires Rusty ≥0.78.0 (file-symlink?/file-realpath,
+;;; and file-hardlink? for the hardlink-escape rows).
 
 (load "wuwei.lisp")
 (load "demo-tools.lisp")
 (load "guards.lisp")
 
-;; ── fixture: box/ with symlinks escaping to outside/ ────────────────────────
+;; ── fixture: box/ with symlinks AND a hardlink escaping to outside/ ──────────
 (define ROOT "/tmp/wuwei-guardtest")
 (define BOX  (str ROOT "/box"))
 (define OUT  (str ROOT "/outside"))
@@ -24,6 +25,7 @@
 (shell (str "ln -s " OUT "/secret.txt " BOX "/symlink-existing.txt"))  ; -> real outside file
 (shell (str "ln -s " OUT "/gone.txt "   BOX "/symlink-dangling.txt"))  ; -> nonexistent outside
 (shell (str "ln -s " OUT " "            BOX "/dirlink"))               ; -> outside directory
+(shell (str "ln "    OUT "/secret.txt " BOX "/hardlink.txt"))         ; -> HARDLINK: same inode, no symlink
 
 (define (row tag v) (println (format "~a => ~s" tag v)))
 
@@ -31,6 +33,7 @@
 ;; The OLD guard: does the path string start with the box? A symlink leaf passes.
 (define (prefix-guard p) (and (string? p) (string-starts-with? p (str BOX "/"))))
 (row "prefix-guard admits a symlink leaf " (prefix-guard (str BOX "/symlink-existing.txt")))
+(row "prefix-guard admits a hardlink too " (prefix-guard (str BOX "/hardlink.txt")))
 
 (println "")
 (println "── safe-under? resolves the real location first ──")
@@ -39,6 +42,7 @@
 (row "symlink -> existing outside file  " (safe-under? BOX (str BOX "/symlink-existing.txt")))
 (row "DANGLING symlink -> outside       " (safe-under? BOX (str BOX "/symlink-dangling.txt")))
 (row "write through a symlinked dir     " (safe-under? BOX (str BOX "/dirlink/pwned.txt")))
+(row "HARDLINK leaf -> outside inode    " (safe-under? BOX (str BOX "/hardlink.txt")))
 (row "dotdot traversal                  " (safe-under? BOX (str BOX "/../outside/secret.txt")))
 (row "absolute escape                   " (safe-under? BOX "/etc/passwd"))
 
@@ -59,6 +63,12 @@
 (row "gate: legit write (ok)            " (gated-dispatch WREG "write-file" (str BOX "/fresh.txt | ok")))
 (row "gate: write thru symlinked dir    " (gated-dispatch WREG "write-file" (str BOX "/dirlink/pwned.txt | HACKED")))
 (row "  outside stayed untouched?       " (not (file-exists? (str OUT "/pwned.txt"))))
+;; Hardlink escape (needs Rusty ≥0.78.0 file-hardlink?): a read AND a write
+;; through an in-box hardlink whose sibling name is outside the box, both
+;; refused before the shared inode is touched.
+(row "gate: read a hardlink (rejected)  " (gated-dispatch REG  "read-file"  (str BOX "/hardlink.txt")))
+(row "gate: write a hardlink (rejected) " (gated-dispatch WREG "write-file" (str BOX "/hardlink.txt | PWNED")))
+(row "  outside inode still \"SECRET\"?    " (equal? (file-read (str OUT "/secret.txt")) "SECRET"))
 
 (shell (str "rm -rf " ROOT))
 (println "")

@@ -3,20 +3,27 @@
 ;;; SPDX-License-Identifier: AGPL-3.0-or-later
 ;;;
 ;;; A precondition that checks a path *string* ("starts with /box/") is defeated
-;;; by a symlink inside the box pointing out: every filesystem builtin FOLLOWS
+;;; by a LINK inside the box pointing out: every filesystem builtin FOLLOWS
 ;;; symlinks, so the effect lands outside the fence. safe-under? resolves the
-;;; REAL location first, using Rusty's no-follow primitives (≥0.42.0):
-;;;   file-symlink?  — lstat: is the path itself a symlink (incl. dangling)?
-;;;   file-realpath  — canonicalize: real absolute path, or Nil if unresolvable.
+;;; REAL location first, using Rusty's no-follow primitives:
+;;;   file-symlink?  (≥0.42.0) — lstat: is the path itself a symlink (incl. dangling)?
+;;;   file-realpath  (≥0.42.0) — canonicalize: real absolute path, or Nil if unresolvable.
+;;;   file-hardlink? (≥0.78.0) — lstat: a regular file whose inode has >1 name?
 ;;;
 ;;; It rejects any symlink LEAF outright (a confinement guard never writes/reads
-;;; through one), and requires the canonical path — or, for a not-yet-created
-;;; file, its canonical parent — to sit under the canonical box. Canonicalizing
-;;; the parent is what catches a symlink in a MIDDLE path component.
+;;; through one); rejects a HARDLINKED leaf too — a second name on the same inode
+;;; may lie outside the box, and unlike a symlink a hardlink has no separate
+;;; canonical path for file-realpath to expose (it resolves to the in-box name),
+;;; so nlink is the only signal; and requires the canonical path — or, for a
+;;; not-yet-created file, its canonical parent — to sit under the canonical box.
+;;; Canonicalizing the parent is what catches a symlink in a MIDDLE path component.
 ;;;
-;;; HONEST SCOPE: this closes every *planted* symlink. It does NOT close a live
-;;; TOCTOU race (a component swapped between check and open) — that is a kernel
-;;; job. For a hostile filesystem, run wuwei inside real OS isolation too.
+;;; HONEST SCOPE: this closes every *planted* symlink and every hardlinked leaf.
+;;; The hardlink check is CONSERVATIVE — it refuses a multiply-linked leaf even
+;;; when the sibling name is itself inside the box (nlink can't say where the
+;;; other name lives). It does NOT close a live TOCTOU race (a component swapped
+;;; between check and open) or other inode-level games — that is a kernel job.
+;;; For a hostile filesystem, run wuwei inside real OS isolation too.
 
 ;; everything up to the last "/"; "." when there is no slash, "/" at root.
 (define (path-parent p)
@@ -44,6 +51,7 @@
     (and (string? path)
          bc
          (not (file-symlink? path))            ; never trust a symlink leaf
+         (not (file-hardlink? path))           ; nor a hardlinked leaf (sibling may escape)
          (let ((rp (if (file-exists? path)
                        (file-realpath path)     ; existing: resolve the whole path
                        (let ((pc (file-realpath (path-parent path))))
