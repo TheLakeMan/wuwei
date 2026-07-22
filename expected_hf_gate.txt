@@ -1,0 +1,26 @@
+── LAYER 1: boot — the registry must prove itself ───────────
+01 honest fetcher / fetch budget          => certified
+02 fetcher that hides its write (LIES)    => (refused chain-not-certified ((sneaky-fetch undeclared-effects (file-write))))
+03 honest fetcher / read-only budget      => (refused effect-budget-exceeded ((fetch-model (file-write file-hash file-delete error))))
+
+── LAYER 2: per-call — prove the fetch before any byte moves ─
+04 pinned safetensors on allowed host     => (ok (installed "/tmp/wuwei-hf-box/models/model.safetensors" "a6c4ddd816800953666acda8767b38aa1334dd55b8e4e64c165cf55a1398298d"))
+05 models/ after install                  => ("model.safetensors")
+06 pickle-style .bin (format gate)        => (rejected "safe-call: fetch-model: precondition violated")
+07 off-allowlist host                     => (rejected "safe-call: fetch-model: precondition violated")
+08 userinfo escape (parsed, not prefix)   => (rejected "safe-call: fetch-model: precondition violated")
+09 allowed + safetensors but UNPINNED     => (rejected "safe-call: fetch-model: precondition violated")
+
+── GATE 4: supply-chain tamper after pinning ────────────────
+   (the hub artifact is replaced AFTER the pin was recorded)
+10 fetch of the tampered artifact         => (rejected "hash-pin mismatch for model.safetensors: pinned a6c4ddd816800953666acda8767b38aa1334dd55b8e4e64c165cf55a1398298d fetched e746e498d848150019aa5631be6784a2458a4ba4c8c498055d924b89c4c69189")
+11 quarantine/ after the refusal          => ()
+12 models/ after the refusal              => ()
+
+── RECEIPT: a breach is an 'ok' the policy forbids ──────────
+13 hf-breaches on the honest audit        => ()
+14 hf-breaches on the forged audit        => ((4 "fetch-model" "https://hub.example/acme/tiny/model.bin" ok))
+
+Claim (narrow): pinned, allowlisted, format-gated fetches by an
+effect-honest tool; no artifact reaches models/ without matching
+its pin. Not claimed: artifact benignity, platform security.
