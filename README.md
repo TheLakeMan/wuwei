@@ -233,7 +233,9 @@ publisher (whose out-of-band fingerprint you would be trusting).
 | `wuwei-pkg-probe.lisp` | package check — manifest valid + entry loads from a foreign cwd |
 | `demo-tools.lisp` | filesystem tools (`deftool` wrappers over core builtins) |
 | `gate-test.lisp` / `expected_gate.txt` | the deterministic golden test |
-| `demo-sandbox.lisp` | **60s offline sandbox story** (no LLM) |
+| `enforced-test.lisp` / `expected_enforced.txt` | golden: FS boundary is the kernel-enforced sandbox (`wuwei-confine!`) — a weak guard still can't escape |
+| `probe-enforced.sh` | non-golden: confirm the Landlock kernel layer is live (kernel-dependent) |
+| `demo-sandbox.lisp` | **60s offline sandbox story** (no LLM) — now kernel-fenced via `wuwei-confine!` |
 | `demo-receipt.lisp` | **audit → mingjian battle-test receipt** (no LLM) |
 | `hf-gate.lisp` | gated model-artifact fetching — allowlist + pin + format + hash-verify |
 | `hf-gate-test.lisp` / `expected_hf_gate.txt` | golden test for the fetch gates |
@@ -248,15 +250,34 @@ publisher (whose out-of-band fingerprint you would be trusting).
 Robotics, untrusted-input agents, anything that touches real systems — see
 **[USE_CASES.md](./USE_CASES.md)** for what it's perfect for (and what it isn't).
 
-**Claim (narrow):** the allowlist can't lie — registry is effect-honest and
-every call is precondition-checked. **Not claimed:** unjailbreakable AI, or a
-replacement for OS isolation (run both). Guards are *logical* fences: use the
-canonicalizing `safe-under?` (not a raw string-prefix check) for symlink safety,
-and `host-allowed?` (which matches the **parsed host**, so
-`https://api.good.com@evil.com/` is rejected rather than waved through) for
-network scopes — but neither follows what happens next: a hostile filesystem
-needs a real OS sandbox, and a redirect off an allowed host lands off-allowlist.
-See [USE_CASES.md](./USE_CASES.md).
+**Two kinds of layer — don't confuse them.** wuwei's boot check-effects (effect
+honesty) and its per-call `safe-under?` / `host-allowed?` preconditions are
+**defense in depth, not the boundary**. `check-effects` is a *static linter*: it
+catches the honest mistake and the obvious trojan, but an effect can be laundered
+past it (hidden behind a higher-order call, `map`, or a macro) — a green boot
+check is not proof of purity. `safe-under?` is a canonicalizing fence that closes
+every *planted* symlink/hardlink, but by its own honest scope not a live TOCTOU
+race. Treat both as early, cheap filters — never as the ground truth.
+
+**The filesystem boundary is the kernel.** For an **offline** tool run,
+`(wuwei-confine! BOX)` fences the whole process under `BOX` with Rusty's sandbox
+(≥0.82.0: an always-on userspace floor + best-effort Landlock), so even a *buggy
+guard or a laundered effect cannot escape* — the kernel refuses the `open()`.
+`enforced-test.lisp` pins exactly that: a tool with a deliberately-weak (always-
+true) precondition still can't write out of the box. It returns the kernel-
+confinement status (`fully-enforced` on a Landlock kernel, `not-enforced`
+without — observable, never a silent downgrade; `sandbox-enable-strict!` *fails*
+rather than run floor-only if you require the kernel). **Caveat:** full FS
+confinement blocks reads outside the box, and the LLM path needs the network (its
+DNS resolver reads `/etc`) — so confine offline tool runs, not live-model ones.
+
+**Claim (narrow):** the allowlist can't lie about what it *declares*, every call
+is precondition-checked, and an offline run can be **kernel-fenced** so effects
+can't leave the box. **Not claimed:** unjailbreakable AI, that `check-effects`
+proves purity, or a replacement for OS isolation on the live-model path. `host-allowed?`
+matches the **parsed host** (`https://api.good.com@evil.com/` is rejected, not
+waved through), but a redirect off an allowed host still lands off-allowlist. See
+[USE_CASES.md](./USE_CASES.md).
 
 ## License
 

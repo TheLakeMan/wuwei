@@ -163,6 +163,30 @@
         (live-entry registry name))
     name raw-arg))
 
+;; ── kernel-enforced confinement (the FS boundary, not just the guard) ─────────
+;; The per-call precondition guard (safe-under?, guards.lisp) and the boot-time
+;; effect-honesty check (check-effects) are DEFENSE IN DEPTH — a static linter and
+;; a canonicalizing path check. Neither is the ground truth: check-effects can be
+;; laundered (an effect hidden behind a higher-order call, `map`, or a macro), and
+;; safe-under? closes planted symlinks but by its own honest scope NOT a live
+;; TOCTOU race. wuwei-confine! makes the filesystem boundary the KERNEL: it fences
+;; the whole process under `box` with Rusty's Landlock sandbox (>=0.82.0), so even
+;; a guard bug or an undeclared effect that slips past the boot gate cannot escape
+;; the box — the kernel refuses the open(). Returns the kernel-confinement status
+;; symbol (fully-enforced | partially-enforced | not-enforced | unsupported), so
+;; the caller can see whether the kernel actually engaged instead of assuming it.
+;;
+;; ONE-WAY and best-effort: once confined the process stays confined for life, and
+;; on a kernel without Landlock (or off Linux) it applies the userspace floor and
+;; reports the degraded status rather than failing — call sandbox-enable-strict!
+;; (Rusty std) instead if a run must ABORT when the kernel can't enforce. `box`
+;; must already exist (create it first). CAVEAT: full FS confinement blocks reads
+;; outside the box, and the LLM path needs the network (its DNS resolver reads
+;; /etc) — so confine an OFFLINE tool run, not a live-model one.
+(define (wuwei-confine! box)
+  (sandbox-enable! box)
+  (sandbox-kernel-status))
+
 ;; ── proof-writing macros: reusable, registered safety predicates ─────────────
 ;; A precondition runs as (apply pre <all the tool's args>), so it must accept
 ;; the tool's full arity. Writing one guard per arity — a 1-arg in-box?, then a

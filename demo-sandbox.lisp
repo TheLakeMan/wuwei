@@ -16,6 +16,13 @@
 (dir-create BOX)
 (file-write (string-append BOX "notes.txt") "buy milk\nship v2\n")
 
+;; Kernel-enforced boundary (Rusty >=0.82.0): fence this offline run under BOX so
+;; the filesystem boundary is the Landlock kernel, not the Lisp guard alone. Even
+;; if a precondition were wrong or an effect slipped past the boot gate, the
+;; kernel refuses an out-of-box open(). Best-effort: reports its status rather
+;; than failing on a kernel without Landlock (the guard layer still holds there).
+(define KSTATUS (wuwei-confine! BOX))
+
 ;; Canonical guard (guards.lisp): resolves symlinks with file-realpath and
 ;; refuses a symlink leaf, so a link planted inside the box can't escape it.
 (define GUARD (under-guard BOX))
@@ -46,6 +53,7 @@
 (println "║  Model may propose anything. Side effects need a proof.  ║")
 (println "╚══════════════════════════════════════════════════════════╝")
 (println (format "Sandbox root: ~a" BOX))
+(println (format "Kernel confinement (Landlock): ~a" KSTATUS))
 (println "Effect budget (this agent): file-read, dir-list, file-exists?")
 
 ;; ── Layer 1 ──────────────────────────────────────────────────────────────────

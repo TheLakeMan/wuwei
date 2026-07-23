@@ -29,6 +29,7 @@ run_test guards-test.lisp expected_guards.txt "guards-test.lisp (safe-under? clo
 run_test net-guards-test.lisp expected_net_guards.txt "net-guards-test.lisp (host-allowed? closes the userinfo escape — offline)"
 run_test multi-tenant-test.lisp expected_multi_tenant.txt "multi-tenant-test.lisp (per-tenant registry + budget; the shared-spec-name leak)"
 run_test hf-gate-test.lisp expected_hf_gate.txt "hf-gate-test.lisp (gated model fetch — parsed-host allowlist + SHA-256 pin + safetensors-only; offline)"
+run_test enforced-test.lisp expected_enforced.txt "enforced-test.lisp (FS boundary is the kernel-enforced sandbox — a weak guard still can't escape; needs Rusty ≥0.82.0)"
 
 # ── Package check: wuwei is a valid, cwd-independent Rusty package ─────────────
 # Copies wuwei into a throwaway $HOME/.rusty/packages/wuwei (where pkg would put

@@ -1,0 +1,5 @@
+(confined-status-symbol #t)
+(in-box-read (ok in-box))
+(out-read-rejected #t)
+(weak-out-rejected #t)
+(weak-in-ok #t)
